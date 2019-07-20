@@ -261,7 +261,6 @@ namespace GraphMaximumFlowCSharp
 
         private List<Edge> DFSVisit(Vertex curVertex, List<Edge> path, ref bool isFind)
         {
-            curVertex.Color = true;
             int i = curVertex.Index - 1;
 
             if (curVertex == data.GetSink())
