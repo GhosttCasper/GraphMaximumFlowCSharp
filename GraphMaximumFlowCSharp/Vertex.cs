@@ -8,26 +8,28 @@ namespace GraphMaximumFlowCSharp
 {
     public class Vertex
     {
-        private int _index;
+        public int Index { get; }
         //private int _capacity; // пропускная способность
         public bool Discovered { get; set; }
-        public Vertex Parent { get; set; }
+        public bool Color { get; set; }
+
+        //public Vertex Parent { get; set; }
 
 
-        private int _flow;     // поток 0 < f{u, v) < с(и, v).
-        private int distance;
-        private Vertex parent;
+        //private int _flow;     // поток 0 < f{u, v) < с(и, v).
+        //private int distance;
+        // private Vertex parent;
 
-        public List<IncidentEdge> AdjacencyList;
+        public List<Edge> AdjacencyList;
 
 
-        private bool discovered;
-        private bool color;
+        // private bool discovered;
+        //private bool color;
 
         public Vertex(int index)
         {
-            _index = index;
-            AdjacencyList = new List<IncidentEdge>();
+            Index = index;
+            AdjacencyList = new List<Edge>();
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -12,6 +13,8 @@ namespace GraphMaximumFlowCSharp
     public class Graph
     {
         private VerticesList data;
+        private UMatrix dataUMatrix;
+        private int[] numberNeighbors;
         public int NumberVertices { get; private set; }
         public int NumberEdges { get; private set; }
 
@@ -52,6 +55,7 @@ namespace GraphMaximumFlowCSharp
                 throw new Exception("Number nodes or edges is a negative");
 
             data = new VerticesList(numVertices);
+            dataUMatrix = new UMatrix(numVertices);
 
             while (!string.IsNullOrEmpty(line = sr.ReadLine()))
             {
@@ -59,18 +63,30 @@ namespace GraphMaximumFlowCSharp
                 tokens = line.Split(' ');
                 int incidentFromIndex = int.Parse(tokens[0]);
                 int incidentToIndex = int.Parse(tokens[1]);
-                int capacity = int.Parse(tokens[2]);
+                ushort capacity = ushort.Parse(tokens[2]);
 
-                if (incidentFromIndex < 1 || incidentFromIndex > numVertices || incidentToIndex < 1 || incidentToIndex > numVertices)
+                if (incidentFromIndex < 1 || incidentFromIndex > numVertices || incidentToIndex < 1 ||
+                    incidentToIndex > numVertices)
                     throw new Exception("The vertex parameter is not in the range 0...this.numVertices");
-                if (capacity < 0)
-                    throw new Exception("The capacity parameter is a negative");
 
                 data.SetValue(incidentFromIndex, incidentToIndex, capacity);
+                dataUMatrix.SetValue(incidentFromIndex - 1, incidentToIndex - 1, capacity);
             }
 
             sr.Close();
             ifs.Close();
+
+            this.numberNeighbors = new int[numVertices];
+            for (int row = 0; row < numVertices; ++row)
+            {
+                int count = 0;
+                for (int col = 0; col < numVertices; ++col)
+                {
+                    if (dataUMatrix.GetValue(row, col) > 0) ++count;
+                }
+
+                numberNeighbors[row] = count;
+            }
 
             NumberVertices = numVertices;
             NumberEdges = numEdges;
@@ -118,7 +134,7 @@ namespace GraphMaximumFlowCSharp
                         tokens = line.Split(' ');
                         int incidentFromIndex = int.Parse(tokens[0]);
                         int incidentToIndex = int.Parse(tokens[1]);
-                        int capacity = int.Parse(tokens[2]);
+                        ushort capacity = ushort.Parse(tokens[2]);
                     }
                 }
                 catch
@@ -133,16 +149,92 @@ namespace GraphMaximumFlowCSharp
             ifs.Close();
         }
 
+        public bool AreAdjacent(int vertexA, int vertexB)
+        {
+            return dataUMatrix.GetValue(vertexA, vertexB) > 0;
+        }
+
+        public int NumberNeighbors(int vertex)
+        {
+            return this.numberNeighbors[vertex];
+        }
+
+        /*
+       * Ford-Fulkerson-Method (G, s, t)
+       1 Инициализация потока / нулевым значением
+       2 while существует увеличивающий путь р в остаточной сети Gу
+       3 увеличиваем поток / вдоль пути р
+       4 return /
+
+       Ford-Fulkerson(<3, s, t)
+       1 for каждого ребра (u, v) е G.E
+       2 (u,v).f = 0
+       3 while существует путь p из s в t в остаточной сети G/
+       4 cf{p) = min {cf(u, v) : (u, v) содержится ър}
+       5 for каждого ребра (и, v) в р
+       6 if (и, v) е Е
+       7 (u,v).f = (u,v).f + cf(p)
+       8 else (v, u).f = (v, u).f - cf(p)
+       */
+
         public void FordFulkerson()
         {
             data.InitializeFlowToZero();
             Vertex s = data.GetSource();
-            Vertex t = data.GetSink();
             int maxFlow = 0;
+            List<Edge> path = new List<Edge>();
 
-            while (FindAugmentingPath())
+
+
+            while ((path = FindAugmentingPath(s)) != null)
             {
+                int minResidualCapacity = int.MaxValue;
+                int previousTo = -1;
+                foreach (var edge in path)
+                {
+                    int from = edge.IncidentFrom.Index - 1;
+                    int to = edge.IncidentTo.Index - 1;
+                    int curResidualCapacity = -1;
+
+                    if (previousTo == to)
+                    {
+                        curResidualCapacity = dataUMatrix.GetValue(to, from);
+                        previousTo = from;
+                    }
+                    else
+                    {
+                        curResidualCapacity = dataUMatrix.GetValue(from, to);
+                        previousTo = to;
+                    }
+                    if (curResidualCapacity < minResidualCapacity)
+                        minResidualCapacity = curResidualCapacity;
+                }
+
+                previousTo = -1;
+                foreach (var edge in path)
+                {
+                    int from = edge.IncidentFrom.Index - 1;
+                    int to = edge.IncidentTo.Index - 1;
+
+                    if (previousTo == to)
+                    {
+                        edge.Flow = edge.Flow - minResidualCapacity;
+                        dataUMatrix.SetValue(to, from, (ushort)edge.Flow);
+                        previousTo = from;
+                    }
+                    else
+                    {
+                        edge.Flow = edge.Flow + minResidualCapacity;
+                        dataUMatrix.SetValue(from, to, (ushort)(edge.Capacity - edge.Flow));
+                        dataUMatrix.SetValue(to, from, (ushort)edge.Flow);
+                        previousTo = to;
+                    }
+                }
+
+                Console.WriteLine(dataUMatrix.ToString());
+                Console.WriteLine(data.ToString());
             }
+            
             foreach (var incidentEdge in s.AdjacencyList)
             {
                 maxFlow += incidentEdge.Flow;
@@ -151,78 +243,55 @@ namespace GraphMaximumFlowCSharp
             Console.WriteLine(maxFlow);
         }
 
-        private List<IncidentEdge> DFSVisit(Vertex curVertex, Vertex sink, List<IncidentEdge> path, ref int minCapacity, ref bool isFind)
+        private List<Edge> FindAugmentingPath(Vertex source)
         {
-            curVertex.Discovered = true;
+            data.InitializeVertices();
 
-            if (curVertex == sink)
+            List<Edge> path = new List<Edge>();
+            bool isFind = false;
+
+            path = DFSVisit(source, path, ref isFind);
+            if (isFind)
+            {
+                return path;
+            }
+
+            return null;
+        }
+
+        private List<Edge> DFSVisit(Vertex curVertex, List<Edge> path, ref bool isFind)
+        {
+            curVertex.Color = true;
+            int i = curVertex.Index - 1;
+
+            if (curVertex == data.GetSink())
             {
                 isFind = true;
                 return path;
             }
 
-            foreach (var edge in curVertex.AdjacencyList)
+            for (int j = 0; j < NumberVertices; j++)
             {
-                if (edge.IncidentTo.Discovered == false && edge.Capacity - edge.Flow > 0)
+                if (AreAdjacent(i, j))
                 {
-                    path.Add(edge);
-                    if (edge.Capacity - edge.Flow < minCapacity)
-                        minCapacity = edge.Capacity - edge.Flow;
-                    edge.IncidentTo.Parent = curVertex;
-                    DFSVisit(edge.IncidentTo, sink, path, ref minCapacity, ref isFind);
+                    curVertex.Discovered = true;
+                    Vertex neighbor = data.GetVertex(j);
+                    if (neighbor.Discovered == false)
+                    {
+                        var edge = data.GetEdge(i, j) ?? data.GetEdge(j, i);
+                        path.Add(edge);
+                        DFSVisit(neighbor, path, ref isFind);
+                        if (isFind)
+                            break;
+                        path.Remove(path.Last());
+                    }
                 }
+
             }
 
             return path;
         }
 
-        // поиск пути, по которому возможно пустить поток алгоритмом обхода графа в ширину
-        // функция ищет путь из истока в сток, по которому еще можно пустить поток,
-        // считая вместимость ребера (i,j) равной c[i][j] - f[i][j]
-
-        public bool FindAugmentingPath() // source - исток, target - сток
-        {
-            data.InitializeVertices();
-            Vertex s = data.GetSource();
-            Vertex t = data.GetSink();
-            List<IncidentEdge> path = new List<IncidentEdge>();
-
-            int minCapacity = int.MaxValue;
-            bool isFind = false;
-
-            if (s.Discovered == false)
-                path = DFSVisit(s, t, path, ref minCapacity, ref isFind);
-
-            if (isFind)
-            {
-                foreach (var incidentEdge in path)
-                {
-                    incidentEdge.Flow = incidentEdge.Flow + minCapacity;
-                }
-            }
-
-
-            return isFind;
-        }
-
-
-        /*
- * Ford-Fulkerson-Method (G, s, t)
-   1 Инициализация потока / нулевым значением
-   2 while существует увеличивающий путь р в остаточной сети Gу
-   3 увеличиваем поток / вдоль пути р
-   4 return /
-
-   Ford-Fulkerson(<3, s, t)
-   1 for каждого ребра (u, v) е G.E
-   2 (u,v).f = 0
-   3 while существует путь p из s в t в остаточной сети G/
-   4 cf{p) = min {cf(u, v) : (u, v) содержится ър}
-   5 for каждого ребра (и, v) в р
-   6 if (и, v) е Е
-   7 (u,v).f = (u,v).f + cf(p)
-   8 else (v, u).f = (v, u).f - cf(p)
- */
 
         private class VerticesList
         {
@@ -240,7 +309,7 @@ namespace GraphMaximumFlowCSharp
             public Vertex GetSource()
             {
                 if (data.Count > 0)
-                    return data[0];
+                    return data.First();
                 return null;
             }
 
@@ -251,24 +320,31 @@ namespace GraphMaximumFlowCSharp
                 return null;
             }
 
-            public Vertex GetVertex(int index)
+            public Vertex GetVertex(int arrayIndex)
             {
-                if (data.Count > 0 && index > 0)
-                    return data[index - 1];
+                if (data.Count > 0)
+                    return data[arrayIndex];
                 return null;
             }
 
-            //public bool GetValue(int row, int col)
-            //{
-            //    return data[row][col];
-            //}
+            public Edge GetEdge(int fromArrayIndex, int toArrayIndex)
+            {
+                Vertex vertexFrom = data[fromArrayIndex];
+                foreach (var edge in vertexFrom.AdjacencyList)
+                {
+                    if (edge.IncidentTo.Index == toArrayIndex + 1)
+                        return edge;
+                }
+
+                return null;
+            }
 
             public void SetValue(int incidentFromIndex, int incidentToIndex, int capacity)
             {
-                Vertex curVertexFrom = data[incidentFromIndex - 1];
-                Vertex curVertexTo = data[incidentToIndex - 1];
-                IncidentEdge curEdge = new IncidentEdge(curVertexTo, capacity);
-                curVertexFrom.AdjacencyList.Add(curEdge);
+                Vertex vertexFrom = data[incidentFromIndex - 1];
+                Vertex vertexTo = data[incidentToIndex - 1];
+                Edge curEdge = new Edge(vertexFrom, vertexTo, capacity);
+                vertexFrom.AdjacencyList.Add(curEdge);
             }
 
             public void InitializeFlowToZero()
@@ -286,11 +362,67 @@ namespace GraphMaximumFlowCSharp
             {
                 foreach (var vertex in data)
                 {
-                    vertex.Parent = null;
                     vertex.Discovered = false;
                 }
             }
 
+            public override string ToString()
+            {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < Number; ++i)
+                {
+                    sb.Append(data[i].Index + ": ");
+                    foreach (var edge in data[i].AdjacencyList)
+                    {
+                        sb.Append(edge.IncidentTo.Index + " ");
+                        sb.Append(edge.Flow + "/");
+                        sb.Append(edge.Capacity + " ");
+                    }
+                    sb.Append(Environment.NewLine);
+                }
+
+                return sb.ToString();
+            }
+
+        }
+
+        private class UMatrix
+        {
+            private ushort[,] matrix;
+            public readonly int Dim;
+
+            public UMatrix(int n)
+            {
+                this.matrix = new ushort[n, n];
+                this.Dim = n;
+            }
+
+            public int GetValue(int row, int col)
+            {
+                return matrix[row, col];
+            }
+
+            public void SetValue(int row, int col, ushort value)
+            {
+                matrix[row, col] = value;
+            }
+
+            public override string ToString()
+            {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < Dim; ++i)
+                {
+                    for (int j = 0; j < Dim; ++j)
+                    {
+                        sb.Append(matrix[i, j]);
+                        sb.Append(" ");
+                    }
+
+                    sb.Append(Environment.NewLine);
+                }
+
+                return sb.ToString();
+            }
         }
     }
 }
