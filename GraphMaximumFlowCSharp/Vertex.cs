@@ -11,7 +11,7 @@ namespace GraphMaximumFlowCSharp
         public int Index { get; }
         public bool Discovered { get; set; }
 
-        public List<Edge> AdjacencyList;
+        public List<Edge> AdjacencyList { get; }
 
         public Vertex(int index)
         {

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,8 +12,7 @@ namespace GraphMaximumFlowCSharp
     public class Graph
     {
         private VerticesList data;
-        private UMatrix dataUMatrix;
-        private int[] numberNeighbors;
+        private UMatrix residualNetwork;
         public int NumberVertices { get; private set; }
         public int NumberEdges { get; private set; }
 
@@ -55,7 +53,7 @@ namespace GraphMaximumFlowCSharp
                 throw new Exception("Number nodes or edges is a negative");
 
             data = new VerticesList(numVertices);
-            dataUMatrix = new UMatrix(numVertices);
+            residualNetwork = new UMatrix(numVertices);
 
             while (!string.IsNullOrEmpty(line = sr.ReadLine()))
             {
@@ -70,23 +68,11 @@ namespace GraphMaximumFlowCSharp
                     throw new Exception("The vertex parameter is not in the range 0...this.numVertices");
 
                 data.SetValue(incidentFromIndex, incidentToIndex, capacity);
-                dataUMatrix.SetValue(incidentFromIndex - 1, incidentToIndex - 1, capacity);
+                residualNetwork.SetValue(incidentFromIndex - 1, incidentToIndex - 1, capacity);
             }
 
             sr.Close();
             ifs.Close();
-
-            this.numberNeighbors = new int[numVertices];
-            for (int row = 0; row < numVertices; ++row)
-            {
-                int count = 0;
-                for (int col = 0; col < numVertices; ++col)
-                {
-                    if (dataUMatrix.GetValue(row, col) > 0) ++count;
-                }
-
-                numberNeighbors[row] = count;
-            }
 
             NumberVertices = numVertices;
             NumberEdges = numEdges;
@@ -151,96 +137,36 @@ namespace GraphMaximumFlowCSharp
 
         public bool AreAdjacent(int vertexA, int vertexB)
         {
-            return dataUMatrix.GetValue(vertexA, vertexB) > 0;
+            return residualNetwork.GetValue(vertexA, vertexB) > 0;
         }
 
-        public int NumberNeighbors(int vertex)
+        /// <summary>
+        /// Алгоритм (метод) Форда-Фалкерсона. Поиск увеличивающего пути через обход в глубину. Сложность 0{Е|f*|).
+        /// </summary>
+        public int FordFulkerson()
         {
-            return this.numberNeighbors[vertex];
-        }
+            data.InitializeFlowToZero(); // Инициализация потока / нулевым значением
 
-        /*
-       * Ford-Fulkerson-Method (G, s, t)
-       1 Инициализация потока / нулевым значением
-       2 while существует увеличивающий путь р в остаточной сети Gу
-       3 увеличиваем поток / вдоль пути р
-       4 return /
-
-       Ford-Fulkerson(<3, s, t)
-       1 for каждого ребра (u, v) е G.E
-       2 (u,v).f = 0
-       3 while существует путь p из s в t в остаточной сети G/
-       4 cf{p) = min {cf(u, v) : (u, v) содержится ър}
-       5 for каждого ребра (и, v) в р
-       6 if (и, v) е Е
-       7 (u,v).f = (u,v).f + cf(p)
-       8 else (v, u).f = (v, u).f - cf(p)
-       */
-
-        public void FordFulkerson()
-        {
-            data.InitializeFlowToZero();
             Vertex s = data.GetSource();
-            int maxFlow = 0;
             List<Edge> path = new List<Edge>();
 
-
-
-            while ((path = FindAugmentingPath(s)) != null)
+            while ((path = FindAugmentingPath(s)) != null) // while существует увеличивающий путь р из s в t в остаточной сети Gf
             {
-                int minResidualCapacity = int.MaxValue;
-                int previousTo = -1;
-                foreach (var edge in path)
-                {
-                    int from = edge.IncidentFrom.Index - 1;
-                    int to = edge.IncidentTo.Index - 1;
-                    int curResidualCapacity = -1;
+                int minResidualCapacity = GetMinResidualCapacity(path); // cf{p) = min {cf(u, v) : (u, v) содержится в р}
+                UpdateFlowAndResidualNetwork(path, minResidualCapacity); // увеличиваем поток / вдоль пути р
 
-                    if (previousTo == to)
-                    {
-                        curResidualCapacity = dataUMatrix.GetValue(to, from);
-                        previousTo = from;
-                    }
-                    else
-                    {
-                        curResidualCapacity = dataUMatrix.GetValue(from, to);
-                        previousTo = to;
-                    }
-                    if (curResidualCapacity < minResidualCapacity)
-                        minResidualCapacity = curResidualCapacity;
-                }
-
-                previousTo = -1;
-                foreach (var edge in path)
-                {
-                    int from = edge.IncidentFrom.Index - 1;
-                    int to = edge.IncidentTo.Index - 1;
-
-                    if (previousTo == to)
-                    {
-                        edge.Flow = edge.Flow - minResidualCapacity;
-                        dataUMatrix.SetValue(to, from, (ushort)edge.Flow);
-                        previousTo = from;
-                    }
-                    else
-                    {
-                        edge.Flow = edge.Flow + minResidualCapacity;
-                        dataUMatrix.SetValue(from, to, (ushort)(edge.Capacity - edge.Flow));
-                        dataUMatrix.SetValue(to, from, (ushort)edge.Flow);
-                        previousTo = to;
-                    }
-                }
-
-                Console.WriteLine(dataUMatrix.ToString());
+                Console.WriteLine(residualNetwork.ToString());
                 Console.WriteLine(data.ToString());
             }
-            
+
+            int maxFlow = 0;
             foreach (var incidentEdge in s.AdjacencyList)
             {
                 maxFlow += incidentEdge.Flow;
             }
 
             Console.WriteLine(maxFlow);
+            return maxFlow;
         }
 
         private List<Edge> FindAugmentingPath(Vertex source)
@@ -252,9 +178,7 @@ namespace GraphMaximumFlowCSharp
 
             path = DFSVisit(source, path, ref isFind);
             if (isFind)
-            {
                 return path;
-            }
 
             return null;
         }
@@ -289,6 +213,57 @@ namespace GraphMaximumFlowCSharp
             }
 
             return path;
+        }
+
+        private int GetMinResidualCapacity(List<Edge> path)
+        {
+            int minResidualCapacity = int.MaxValue;
+            int previousTo = -1;
+            foreach (var edge in path)
+            {
+                int from = edge.IncidentFrom.Index - 1;
+                int to = edge.IncidentTo.Index - 1;
+                int curResidualCapacity = -1;
+
+                if (previousTo == to)  // if (u, v) не принадлежит Е
+                {
+                    curResidualCapacity = residualNetwork.GetValue(to, from);
+                    previousTo = from;
+                }
+                else // if (u, v) е Е
+                {
+                    curResidualCapacity = residualNetwork.GetValue(from, to);
+                    previousTo = to;
+                }
+                if (curResidualCapacity < minResidualCapacity)
+                    minResidualCapacity = curResidualCapacity;
+            }
+
+            return minResidualCapacity;
+        }
+
+        private void UpdateFlowAndResidualNetwork(List<Edge> path, int minResidualCapacity)
+        {
+            int previousTo = -1;
+            foreach (var edge in path) // for каждого ребра (u, v) в р
+            {
+                int from = edge.IncidentFrom.Index - 1;
+                int to = edge.IncidentTo.Index - 1;
+
+                if (previousTo == to) // if (u, v) не принадлежит Е
+                {
+                    edge.Flow = edge.Flow - minResidualCapacity; // (v, u).f = (v, u).f - cf(p)
+                    residualNetwork.SetValue(to, from, (ushort)edge.Flow);
+                    previousTo = from;
+                }
+                else // if (u, v) е Е
+                {
+                    edge.Flow = edge.Flow + minResidualCapacity; // (u, v).f = (u, v).f + cf(p)
+                    residualNetwork.SetValue(from, to, (ushort)(edge.Capacity - edge.Flow));
+                    residualNetwork.SetValue(to, from, (ushort)edge.Flow);
+                    previousTo = to;
+                }
+            }
         }
 
 

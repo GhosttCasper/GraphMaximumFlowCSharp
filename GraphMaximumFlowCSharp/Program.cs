@@ -15,13 +15,19 @@ namespace GraphMaximumFlowCSharp
     {
         static void Main(string[] args)
         {
-            string graphFile = "..\\..\\input.txt";
-            Graph.ValidateGraphFile(graphFile, FileFormat.TXT);
+            try
+            {
+                string graphFile = "..\\..\\input.txt";
+                Graph.ValidateGraphFile(graphFile, FileFormat.TXT);
 
-            Graph graph = new Graph(graphFile, FileFormat.TXT);
+                Graph graph = new Graph(graphFile, FileFormat.TXT);
 
-            graph.FordFulkerson();
-
+                graph.FordFulkerson();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e); Console.WriteLine("Fatal: " + e.Message);
+            }
         }
     }
 }
