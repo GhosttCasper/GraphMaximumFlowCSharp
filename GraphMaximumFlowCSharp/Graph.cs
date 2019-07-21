@@ -150,7 +150,7 @@ namespace GraphMaximumFlowCSharp
             Vertex s = data.GetSource();
             List<Edge> path = new List<Edge>();
 
-            while ((path = FindAugmentingPath(s)) != null) // while существует увеличивающий путь р из s в t в остаточной сети Gf
+            while ((path = FindAugmentingPathDFS(s)) != null) // while существует увеличивающий путь р из s в t в остаточной сети Gf
             {
                 int minResidualCapacity = GetMinResidualCapacity(path); // cf{p) = min {cf(u, v) : (u, v) содержится в р}
                 UpdateFlowAndResidualNetwork(path, minResidualCapacity); // увеличиваем поток / вдоль пути р
@@ -169,7 +169,7 @@ namespace GraphMaximumFlowCSharp
             return maxFlow;
         }
 
-        private List<Edge> FindAugmentingPath(Vertex source)
+        private List<Edge> FindAugmentingPathDFS(Vertex source)
         {
             data.InitializeVertices();
 
@@ -266,6 +266,88 @@ namespace GraphMaximumFlowCSharp
             }
         }
 
+        /// <summary>
+        /// Алгоритм Эдмондса-Карпа. Поиск увеличивающего пути р через поиск в ширину. Сложность 0(V*E^2).
+        /// </summary>
+        public int EdmondsКагр()
+        {
+            data.InitializeFlowToZero(); // Инициализация потока / нулевым значением
+
+            Vertex s = data.GetSource();
+            List<Edge> path = new List<Edge>();
+
+            while ((path = FindAugmentingPathBFS(s)) != null) // while существует увеличивающий путь р из s в t в остаточной сети Gf
+            {
+                int minResidualCapacity = GetMinResidualCapacity(path); // cf{p) = min {cf(u, v) : (u, v) содержится в р}
+                UpdateFlowAndResidualNetwork(path, minResidualCapacity); // увеличиваем поток / вдоль пути р
+
+                Console.WriteLine(residualNetwork.ToString());
+                Console.WriteLine(data.ToString());
+            }
+
+            int maxFlow = 0;
+            foreach (var incidentEdge in s.AdjacencyList)
+            {
+                maxFlow += incidentEdge.Flow;
+            }
+
+            Console.WriteLine(maxFlow);
+            return maxFlow;
+        }
+
+        private List<Edge> FindAugmentingPathBFS(Vertex source)
+        {
+            data.InitializeVertices();
+
+            List<Edge> path = new List<Edge>();
+            bool isFind = false;
+            Vertex sink = data.GetSink();
+
+            source.Discovered = true;
+            Queue<Vertex> queue = new Queue<Vertex>();
+            queue.Enqueue(source);
+            while (queue.Count != 0)
+            {
+                Vertex curVertex = queue.Dequeue();
+                if (curVertex == sink)
+                {
+                    isFind = true;
+                    break;
+                }
+                int i = curVertex.Index - 1;
+                for (int j = 0; j < NumberVertices; j++)
+                {
+                    if (AreAdjacent(i, j))
+                    {
+                        Vertex neighbor = data.GetVertex(j);
+                        if (neighbor.Discovered == false)
+                        {
+                            neighbor.Discovered = true;
+                            neighbor.Parent = curVertex;
+                            queue.Enqueue(neighbor);
+                        }
+                    }
+                }
+            }
+
+            Vertex curVertexInPath = sink;
+            while (curVertexInPath != source)
+            {
+                int from = curVertexInPath.Parent.Index - 1;
+                int to = curVertexInPath.Index - 1;
+                var edge = data.GetEdge(from, to) ?? data.GetEdge(to, from);
+                path.Add(edge);
+                curVertexInPath = curVertexInPath.Parent;
+            }
+
+            path.Reverse();
+
+
+            if (isFind)
+                return path;
+
+            return null;
+        }
 
         private class VerticesList
         {

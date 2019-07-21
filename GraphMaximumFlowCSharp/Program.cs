@@ -22,11 +22,12 @@ namespace GraphMaximumFlowCSharp
 
                 Graph graph = new Graph(graphFile, FileFormat.TXT);
 
-                graph.FordFulkerson();
+                //graph.FordFulkerson();
+                graph.EdmondsКагр();
             }
             catch (Exception e)
             {
-                Console.WriteLine(e); Console.WriteLine("Fatal: " + e.Message);
+                Console.WriteLine("Fatal: " + e.Message);
             }
         }
     }

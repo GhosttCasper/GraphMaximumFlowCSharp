@@ -10,6 +10,7 @@ namespace GraphMaximumFlowCSharp
     {
         public int Index { get; }
         public bool Discovered { get; set; }
+        public Vertex Parent { get; set; }
 
         public List<Edge> AdjacencyList { get; }
 
