@@ -26,6 +26,7 @@ namespace GraphMaximumFlowCSharp
                 //graph.EdmondsКагр();
                 //graph.GenericPushRelabel();
                 graph.RelabelToFront();
+                graph.FindMinimumCut();
             }
             catch (Exception e)
             {

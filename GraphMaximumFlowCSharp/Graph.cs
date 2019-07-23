@@ -541,6 +541,56 @@ namespace GraphMaximumFlowCSharp
             return maxFlow;
         }
 
+        public void FindMinimumCut()
+        {
+            data.InitializeVerticesForSearch();
+
+            Vertex source = data.GetSource();
+            source.Discovered = true;
+
+            Queue<Vertex> queue = new Queue<Vertex>();
+            queue.Enqueue(source);
+            while (queue.Count != 0)
+            {
+                Vertex curVertex = queue.Dequeue();
+                int i = curVertex.Index - 1;
+                for (int j = 0; j < NumberVertices; j++)
+                {
+                    if (residualNetwork.AreAdjacent(i, j))
+                    {
+                        Vertex neighbor = data.GetVertex(j);
+                        if (neighbor.Discovered == false)
+                        {
+                            neighbor.Discovered = true;
+                            neighbor.Parent = curVertex;
+                            queue.Enqueue(neighbor);
+                        }
+                    }
+                }
+            }
+
+            List<Edge> cut = new List<Edge>();
+            foreach (var vertex in data.GetVerticesList())
+            {
+                foreach (var edge in vertex.AdjacencyList)
+                {
+                    if (edge.IncidentFrom.Discovered && !edge.IncidentTo.Discovered)
+                        cut.Add(edge);
+                }
+            }
+
+            StringBuilder sb = new StringBuilder();
+            foreach (var edge in cut)
+            {
+                sb.Append(edge.IncidentFrom.Index + "-");
+                sb.Append(edge.IncidentTo.Index + ": ");
+                sb.Append(edge.Flow + "/");
+                sb.Append(edge.Capacity + " ");
+                sb.Append(Environment.NewLine);
+            }
+            Console.WriteLine(sb);
+        }
+
         private class VerticesList
         {
             private List<Vertex> data;
@@ -634,6 +684,11 @@ namespace GraphMaximumFlowCSharp
             public List<Vertex> GetListWithoutSourceAndSink()
             {
                 return data.GetRange(1, Number - 2);
+            }
+
+            public List<Vertex> GetVerticesList()
+            {
+                return data;
             }
 
             public override string ToString()

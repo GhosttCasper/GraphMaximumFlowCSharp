@@ -15,7 +15,6 @@ namespace GraphMaximumFlowCSharp
         public int Height { get; set; } // (distance function), а высота вершины называется меткой расстояния (distance label)
         public List<Vertex> NeighborList { get; } // односвязный список вершин, смежных c u в графе G. (u, v) £ Е или (v,u) G Е.
 
-
         public List<Edge> AdjacencyList { get; }
 
         public Vertex(int index)
