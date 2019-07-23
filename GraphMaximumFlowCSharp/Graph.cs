@@ -135,11 +135,6 @@ namespace GraphMaximumFlowCSharp
             ifs.Close();
         }
 
-        public bool AreAdjacent(int vertexA, int vertexB)
-        {
-            return residualNetwork.GetValue(vertexA, vertexB) > 0;
-        }
-
         /// <summary>
         /// Алгоритм (метод) Форда-Фалкерсона. Поиск увеличивающего пути через обход в глубину. Сложность 0{Е|f*|).
         /// </summary>
@@ -171,7 +166,7 @@ namespace GraphMaximumFlowCSharp
 
         private List<Edge> FindAugmentingPathDFS(Vertex source)
         {
-            data.InitializeVertices();
+            data.InitializeVerticesForSearch();
 
             List<Edge> path = new List<Edge>();
             bool isFind = false;
@@ -195,7 +190,7 @@ namespace GraphMaximumFlowCSharp
 
             for (int j = 0; j < NumberVertices; j++)
             {
-                if (AreAdjacent(i, j))
+                if (residualNetwork.AreAdjacent(i, j))
                 {
                     curVertex.Discovered = true;
                     Vertex neighbor = data.GetVertex(j);
@@ -297,7 +292,7 @@ namespace GraphMaximumFlowCSharp
 
         private List<Edge> FindAugmentingPathBFS(Vertex source)
         {
-            data.InitializeVertices();
+            data.InitializeVerticesForSearch();
 
             List<Edge> path = new List<Edge>();
             bool isFind = false;
@@ -317,7 +312,7 @@ namespace GraphMaximumFlowCSharp
                 int i = curVertex.Index - 1;
                 for (int j = 0; j < NumberVertices; j++)
                 {
-                    if (AreAdjacent(i, j))
+                    if (residualNetwork.AreAdjacent(i, j))
                     {
                         Vertex neighbor = data.GetVertex(j);
                         if (neighbor.Discovered == false)
@@ -347,6 +342,138 @@ namespace GraphMaximumFlowCSharp
                 return path;
 
             return null;
+        }
+
+        /// <summary>
+        /// "Проталкивание" предпотока. Сложность 0(1).
+        /// Применяется при: вершина u переполнена, Cf(u, v) > 0 и u.h = v.h + 1.
+        /// Действие: проталкивает min(u. е, Cf(u, v)) единиц потока из u в v. 
+        /// </summary>
+        /// <param name="from">u (не может быть истоком или стоком)</param>
+        /// <param name="to">v</param>
+        private void Push(Vertex from, Vertex to)
+        {
+            int fromInd = from.Index - 1; // fromArrayIndex
+            int toInd = to.Index - 1;     // toArrayIndex
+
+            int flowToPush = residualNetwork.GetValue(fromInd, toInd);
+            if (from.ExcessFlow < flowToPush)
+                flowToPush = from.ExcessFlow; // минимум min(u. е, Cf(u, v))
+
+            var edge = data.GetEdge(fromInd, toInd);
+            if (edge != null) // если ребро u,v принадлежит E
+            {
+                edge.Flow = edge.Flow + flowToPush;
+                residualNetwork.SetValue(fromInd, toInd, (ushort)(edge.Capacity - edge.Flow));
+                residualNetwork.SetValue(toInd, fromInd, (ushort)edge.Flow);
+            }
+            else              // если ребро u,v не принадлежит E
+            {
+                edge = data.GetEdge(toInd, fromInd);
+                edge.Flow = edge.Flow - flowToPush;
+                residualNetwork.SetValue(toInd, fromInd, (ushort)edge.Flow);
+            }
+
+            from.ExcessFlow = from.ExcessFlow - flowToPush;
+            to.ExcessFlow = to.ExcessFlow + flowToPush;
+        }
+
+        /// <summary>
+        /// Подъём, "Проталкивание". Сложность 0(V).
+        /// Применяется при: вершина u переполнена, и для всех v е V, таких,
+        /// что (u,v) е Ef, имеем u.h меньше или равно v.h. 
+        /// Действие: увеличивает высоту u.
+        /// </summary>
+        /// <param name="vertex">u (не может быть истоком или стоком)</param>
+        private void Relabel(Vertex vertex)
+        {
+            int minHeight = int.MaxValue; // минимальная высота среди всех соседей в остаточной сети
+
+            int i = vertex.Index - 1;
+            for (int j = 0; j < NumberVertices; j++)
+            {
+                if (residualNetwork.AreAdjacent(i, j))
+                {
+                    Vertex neighbor = data.GetVertex(j);
+                    if (neighbor.Height < minHeight)
+                        minHeight = neighbor.Height;
+                }
+            }
+
+            vertex.Height = 1 + minHeight;
+        }
+
+        private void InitializePreflow(Vertex source)
+        {
+            data.InitializeVerticesForPreflow();
+
+            source.Height = NumberVertices;
+
+            foreach (var edge in source.AdjacencyList)
+            {
+                edge.Flow = edge.Capacity;
+                edge.IncidentTo.ExcessFlow = edge.Capacity;
+                source.ExcessFlow -= edge.Capacity;
+
+                int from = source.Index - 1;
+                int to = edge.IncidentTo.Index - 1;
+                residualNetwork.SetValue(from, to, 0); // т.к. edge.Capacity - edge.Flow = 0
+                residualNetwork.SetValue(to, from, (ushort)edge.Flow);
+            }
+        }
+
+        /// <summary>
+        /// Обобщенный алгоритм проталкивания предпотока. Сложность 0(V^2*E).
+        /// </summary>
+        public int GenericPushRelabel()
+        {
+            Vertex source = data.GetSource();
+            Vertex sink = data.GetSink();
+
+            InitializePreflow(source);
+
+            bool exist = true;
+            while (exist) // while существует применимая операция проталкивания или подъема
+            {
+                exist = false;
+                for (int i = 0; i < NumberVertices; i++)
+                {
+                    Vertex curVertex = data.GetVertex(i);
+                    if (curVertex.ExcessFlow <= 0 || curVertex == source || curVertex == sink)
+                        continue;
+                    exist = true;
+                    bool isRelabel = true;
+
+                    for (int j = 0; j < NumberVertices; j++)
+                    {
+                        if (residualNetwork.AreAdjacent(i, j))
+                        {
+                            Vertex neighbor = data.GetVertex(j);
+                            if (curVertex.Height == neighbor.Height + 1)
+                            {
+                                Push(curVertex, neighbor); // выбрать и выполнить операцию проталкивания или подъема
+                                isRelabel = false;
+                            }
+                        }
+                    }
+
+                    if (isRelabel)
+                        Relabel(curVertex);
+                }
+            }
+
+            Console.WriteLine(residualNetwork.ToString());
+            Console.WriteLine(data.ToString());
+
+            int maxFlow = 0;
+            foreach (var incidentEdge in data.GetSource().AdjacencyList)
+            {
+                maxFlow += incidentEdge.Flow;
+            }
+
+            Console.WriteLine(maxFlow);
+
+            return maxFlow;
         }
 
         private class VerticesList
@@ -414,12 +541,26 @@ namespace GraphMaximumFlowCSharp
                 }
             }
 
-            public void InitializeVertices()
+            public void InitializeVerticesForSearch()
             {
                 foreach (var vertex in data)
                 {
                     vertex.Discovered = false;
                 }
+            }
+
+            public void InitializeVerticesForPreflow()
+            {
+                foreach (var vertex in data)
+                {
+                    vertex.Height = 0;
+                    vertex.ExcessFlow = 0;
+                    foreach (var edge in vertex.AdjacencyList)
+                    {
+                        edge.Flow = 0;
+                    }
+                }
+
             }
 
             public override string ToString()
@@ -461,6 +602,11 @@ namespace GraphMaximumFlowCSharp
             public void SetValue(int row, int col, ushort value)
             {
                 matrix[row, col] = value;
+            }
+
+            public bool AreAdjacent(int vertexA, int vertexB)
+            {
+                return GetValue(vertexA, vertexB) > 0;
             }
 
             public override string ToString()

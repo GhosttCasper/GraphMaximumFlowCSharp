@@ -23,7 +23,8 @@ namespace GraphMaximumFlowCSharp
                 Graph graph = new Graph(graphFile, FileFormat.TXT);
 
                 //graph.FordFulkerson();
-                graph.EdmondsКагр();
+                //graph.EdmondsКагр();
+                graph.GenericPushRelabel();
             }
             catch (Exception e)
             {
