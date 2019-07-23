@@ -356,26 +356,24 @@ namespace GraphMaximumFlowCSharp
             int fromInd = from.Index - 1; // fromArrayIndex
             int toInd = to.Index - 1;     // toArrayIndex
 
-            int flowToPush = residualNetwork.GetValue(fromInd, toInd);
-            if (from.ExcessFlow < flowToPush)
-                flowToPush = from.ExcessFlow; // минимум min(u. е, Cf(u, v))
+            int flowToPush = Math.Min(from.ExcessFlow, residualNetwork.GetValue(fromInd, toInd)); // минимум min(u. е, Cf(u, v))
 
             var edge = data.GetEdge(fromInd, toInd);
             if (edge != null) // если ребро u,v принадлежит E
             {
-                edge.Flow = edge.Flow + flowToPush;
+                edge.Flow += flowToPush;
                 residualNetwork.SetValue(fromInd, toInd, (ushort)(edge.Capacity - edge.Flow));
                 residualNetwork.SetValue(toInd, fromInd, (ushort)edge.Flow);
             }
             else              // если ребро u,v не принадлежит E
             {
                 edge = data.GetEdge(toInd, fromInd);
-                edge.Flow = edge.Flow - flowToPush;
+                edge.Flow -= flowToPush;
                 residualNetwork.SetValue(toInd, fromInd, (ushort)edge.Flow);
             }
 
-            from.ExcessFlow = from.ExcessFlow - flowToPush;
-            to.ExcessFlow = to.ExcessFlow + flowToPush;
+            from.ExcessFlow -= flowToPush;
+            to.ExcessFlow += flowToPush;
         }
 
         /// <summary>
@@ -393,11 +391,7 @@ namespace GraphMaximumFlowCSharp
             for (int j = 0; j < NumberVertices; j++)
             {
                 if (residualNetwork.AreAdjacent(i, j))
-                {
-                    Vertex neighbor = data.GetVertex(j);
-                    if (neighbor.Height < minHeight)
-                        minHeight = neighbor.Height;
-                }
+                    minHeight = Math.Min(minHeight, data.GetVertex(j).Height);
             }
 
             vertex.Height = 1 + minHeight;
@@ -476,6 +470,77 @@ namespace GraphMaximumFlowCSharp
             return maxFlow;
         }
 
+        /// <summary>
+        /// Разгрузка переполненной вершины. "Обслуживание вершины".
+        /// </summary>
+        /// <param name="vertex"></param>
+        private void Discharge(Vertex vertex)
+        {
+            Vertex curNeighbor = vertex.NeighborList.First();
+            while (vertex.ExcessFlow > 0)
+            {
+                if (curNeighbor == null)
+                {
+                    Relabel(vertex);
+                    curNeighbor = vertex.NeighborList.First();
+                }
+                else
+                {
+                    int from = vertex.Index - 1;
+                    int to = curNeighbor.Index - 1;
+
+                    if (residualNetwork.AreAdjacent(from, to) && vertex.Height == curNeighbor.Height + 1)
+                        Push(vertex, curNeighbor);
+                    else
+                    {
+                        int nextIndexInNeighborList = vertex.NeighborList.IndexOf(curNeighbor) + 1;
+                        curNeighbor = nextIndexInNeighborList == vertex.NeighborList.Count ? null : vertex.NeighborList[nextIndexInNeighborList];
+                    }
+
+                }
+            }
+        }
+
+        /// <summary>
+        /// Алгоритм “поднять-в-начало”. Сложность 0(V^3).
+        /// </summary>
+        public int RelabelToFront()
+        {
+            Vertex source = data.GetSource();
+            InitializePreflow(source);
+
+            List<Vertex> verticesList = data.GetListWithoutSourceAndSink();
+            Vertex curVertex = verticesList.First();
+
+            while (curVertex != null)
+            {
+                int oldHeight = curVertex.Height;
+                Discharge(curVertex);
+                if (curVertex.Height > oldHeight) // Если процедура Discharge изменила высоту вершины u
+                { // переместить u в начало списка L
+                    Vertex item = curVertex;
+                    verticesList.Remove(curVertex);
+                    verticesList.Insert(0, item);
+                }
+
+                int nextIndexInList = verticesList.IndexOf(curVertex) + 1;
+                curVertex = nextIndexInList == verticesList.Count ? null : verticesList[nextIndexInList];
+            }
+
+            Console.WriteLine(residualNetwork.ToString());
+            Console.WriteLine(data.ToString());
+
+            int maxFlow = 0;
+            foreach (var incidentEdge in data.GetSource().AdjacencyList)
+            {
+                maxFlow += incidentEdge.Flow;
+            }
+
+            Console.WriteLine(maxFlow);
+
+            return maxFlow;
+        }
+
         private class VerticesList
         {
             private List<Vertex> data;
@@ -528,6 +593,9 @@ namespace GraphMaximumFlowCSharp
                 Vertex vertexTo = data[incidentToIndex - 1];
                 Edge curEdge = new Edge(vertexFrom, vertexTo, capacity);
                 vertexFrom.AdjacencyList.Add(curEdge);
+
+                vertexFrom.NeighborList.Add(vertexTo);
+                vertexTo.NeighborList.Add(vertexFrom);
             }
 
             public void InitializeFlowToZero()
@@ -561,6 +629,11 @@ namespace GraphMaximumFlowCSharp
                     }
                 }
 
+            }
+
+            public List<Vertex> GetListWithoutSourceAndSink()
+            {
+                return data.GetRange(1, Number - 2);
             }
 
             public override string ToString()

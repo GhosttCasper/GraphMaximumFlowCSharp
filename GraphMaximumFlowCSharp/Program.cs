@@ -24,7 +24,8 @@ namespace GraphMaximumFlowCSharp
 
                 //graph.FordFulkerson();
                 //graph.EdmondsКагр();
-                graph.GenericPushRelabel();
+                //graph.GenericPushRelabel();
+                graph.RelabelToFront();
             }
             catch (Exception e)
             {

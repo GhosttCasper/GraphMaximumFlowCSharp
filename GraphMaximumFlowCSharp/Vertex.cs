@@ -13,6 +13,8 @@ namespace GraphMaximumFlowCSharp
         public Vertex Parent { get; set; }
         public int ExcessFlow { get; set; } // избыточный поток, входящий в вершину, представляет собой величину, на которую входящий поток превышает исходящий.
         public int Height { get; set; } // (distance function), а высота вершины называется меткой расстояния (distance label)
+        public List<Vertex> NeighborList { get; } // односвязный список вершин, смежных c u в графе G. (u, v) £ Е или (v,u) G Е.
+
 
         public List<Edge> AdjacencyList { get; }
 
@@ -20,6 +22,7 @@ namespace GraphMaximumFlowCSharp
         {
             Index = index;
             AdjacencyList = new List<Edge>();
+            NeighborList = new List<Vertex>();
         }
     }
 }
