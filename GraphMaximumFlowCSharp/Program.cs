@@ -27,6 +27,9 @@ namespace GraphMaximumFlowCSharp
                 //graph.GenericPushRelabel();
                 graph.RelabelToFront();
                 graph.FindMinimumCut();
+
+                string outputGraphFile = "..\\..\\output.txt";
+                graph.SaveTxtFormatGraph(outputGraphFile);
             }
             catch (Exception e)
             {

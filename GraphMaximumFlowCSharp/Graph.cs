@@ -140,7 +140,7 @@ namespace GraphMaximumFlowCSharp
         /// </summary>
         public int FordFulkerson()
         {
-            data.InitializeFlowToZero(); // Инициализация потока / нулевым значением
+            data.InitializeFlowToZero(); // Инициализация потока нулевым значением
 
             Vertex s = data.GetSource();
             List<Edge> path = new List<Edge>();
@@ -548,7 +548,7 @@ namespace GraphMaximumFlowCSharp
             Vertex source = data.GetSource();
             source.Discovered = true;
 
-            Queue<Vertex> queue = new Queue<Vertex>();
+            Queue<Vertex> queue = new Queue<Vertex>(); // BFS
             queue.Enqueue(source);
             while (queue.Count != 0)
             {
@@ -589,6 +589,15 @@ namespace GraphMaximumFlowCSharp
                 sb.Append(Environment.NewLine);
             }
             Console.WriteLine(sb);
+        }
+
+        public void SaveTxtFormatGraph(string graphFile)
+        {
+            using (StreamWriter writer = new StreamWriter(graphFile))
+            {
+                writer.WriteLine(NumberVertices);
+                writer.WriteLine(data.ToTxtFile());
+            }
         }
 
         private class VerticesList
@@ -704,6 +713,23 @@ namespace GraphMaximumFlowCSharp
                         sb.Append(edge.Capacity + " ");
                     }
                     sb.Append(Environment.NewLine);
+                }
+
+                return sb.ToString();
+            }
+
+            public string ToTxtFile()
+            {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < Number; ++i)
+                {
+                    foreach (var edge in data[i].AdjacencyList)
+                    {
+                        sb.Append(data[i].Index + " ");
+                        sb.Append(edge.IncidentTo.Index + " ");
+                        sb.Append(edge.Flow);
+                        sb.Append(Environment.NewLine);
+                    }
                 }
 
                 return sb.ToString();
