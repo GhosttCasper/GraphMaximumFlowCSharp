@@ -727,7 +727,8 @@ namespace GraphMaximumFlowCSharp
                     {
                         sb.Append(data[i].Index + " ");
                         sb.Append(edge.IncidentTo.Index + " ");
-                        sb.Append(edge.Flow);
+                        sb.Append(edge.Flow + " ");
+                        sb.Append(edge.Capacity);
                         sb.Append(Environment.NewLine);
                     }
                 }
