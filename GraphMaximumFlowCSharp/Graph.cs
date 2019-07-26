@@ -541,7 +541,7 @@ namespace GraphMaximumFlowCSharp
             return maxFlow;
         }
 
-        public void FindMinimumCut()
+        public string FindMinimumCut()
         {
             data.InitializeVerticesForSearch();
 
@@ -589,6 +589,8 @@ namespace GraphMaximumFlowCSharp
                 sb.Append(Environment.NewLine);
             }
             Console.WriteLine(sb);
+
+            return sb.ToString();
         }
 
         public void SaveTxtFormatGraph(string graphFile)
@@ -598,6 +600,15 @@ namespace GraphMaximumFlowCSharp
                 writer.WriteLine(NumberVertices);
                 writer.WriteLine(data.ToTxtFile());
             }
+        }
+
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append(residualNetwork);
+            sb.Append(Environment.NewLine);
+            sb.Append(data);
+            return sb.ToString();
         }
 
         private class VerticesList

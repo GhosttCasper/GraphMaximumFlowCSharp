@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
  *
  * Минимальным разрезом (minimum cut) сети является разрез, пропускная способность которого среди всех разрезов сети минимальна.
  */
+
 namespace GraphMaximumFlowCSharp
 {
     class Program
@@ -25,8 +27,9 @@ namespace GraphMaximumFlowCSharp
                 //graph.FordFulkerson();
                 //graph.EdmondsКагр();
                 //graph.GenericPushRelabel();
-                graph.RelabelToFront();
-                graph.FindMinimumCut();
+                int maxFlow = graph.RelabelToFront();
+                string minCut = graph.FindMinimumCut();
+                WriteFile(graph, "output.txt", maxFlow, minCut);
 
                 string outputGraphFile = "..\\..\\output.txt";
                 graph.SaveTxtFormatGraph(outputGraphFile);
@@ -34,6 +37,16 @@ namespace GraphMaximumFlowCSharp
             catch (Exception e)
             {
                 Console.WriteLine("Fatal: " + e.Message);
+            }
+        }
+
+        private static void WriteFile(Graph graph, string fileName, int maxFlow, string minCut)
+        {
+            using (StreamWriter writer = new StreamWriter(fileName))
+            {
+                writer.WriteLine(graph.ToString());
+                writer.WriteLine(maxFlow.ToString());
+                writer.WriteLine(minCut);
             }
         }
     }
